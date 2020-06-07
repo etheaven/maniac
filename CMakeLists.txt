@@ -10,9 +10,7 @@ endif (NOT CMAKE_BUILD_TYPE)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 add_executable(maniac
-        src/maniac.cpp
-        src/process/process.cpp
-        src/osu/osu.cpp)
+        src/maniac.cpp)
 
 if (UNIX)
     message(FATAL_ERROR "UNIX systems are currently not supported")
