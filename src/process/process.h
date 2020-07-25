@@ -38,14 +38,16 @@ public:
 	 * See `T read_memory`, except that it throws exceptions with the given name included in the
 	 * error message.
 	 */
-	template<typename T>
-	T read_memory_safe(const char *name, uintptr_t address);
+	template<typename T, typename Any = uintptr_t>
+	T read_memory_safe(const char *name, Any address);
 
 	/**
 	 * Expects `pattern` to be in "IDA-Style", i.e. to group bytes in pairs of two and to denote
 	 * wildcards by a single question mark. Returns 0 if the pattern couldn't be found.
 	 */
 	uintptr_t find_pattern(const char *pattern);
+
+	static void send_keypress(char key, bool down);
 };
 
 template<typename T>
@@ -72,13 +74,17 @@ inline T Process::read_memory(uintptr_t address) {
 	return out;
 }
 
-template<typename T>
-T Process::read_memory_safe(const char *name, uintptr_t address) {
+template<typename T, typename Any>
+T Process::read_memory_safe(const char *name, Any addr) {
+	// TODO: So much for "safe".
+	uintptr_t address = (uintptr_t)(void *)addr;
+
 	if (!address) {
+		// TODO: Get rid of this ASAP once std::format is out.
 		char msg[128];
 		msg[127] = '\0';
 
-		sprintf(msg, "pointer to %s was invalid", name);
+		sprintf_s(msg, 128, "pointer to %s was invalid", name);
 
 		throw std::runtime_error(msg);
 	}
@@ -86,13 +92,36 @@ T Process::read_memory_safe(const char *name, uintptr_t address) {
 	T out;
 
 	if (!read_memory(address, &out, 1)) {
+		// TODO: See above.
 		char msg[128];
 		msg[127] = '\0';
 
-		sprintf(msg, "failed reading %s at %#x", name, address);
+		sprintf_s(msg, 128, "failed reading %s at %#x", name, address);
 
 		throw std::runtime_error(msg);
 	}
 
+	debug_short("%s: %#x", name, (unsigned int)address);
+
 	return out;
+}
+
+inline void Process::send_keypress(char key, bool down) {
+	// TODO: Look into KEYEVENTF_SCANCODE (see esp. KEYBDINPUT remarks section).
+
+	static INPUT in;
+	static auto layout = GetKeyboardLayout(0);
+
+	in.type = INPUT_KEYBOARD;
+	in.ki.time = 0;
+	in.ki.wScan = 0;
+	in.ki.dwExtraInfo = 0;
+	in.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
+	// TODO: Populate an array of scan codes for the keys that are going to be
+	//	 pressed to avoid calculating them all the time.
+	in.ki.wVk = VkKeyScanEx(key, layout) & 0xFF;
+
+	if (!SendInput(1, &in, sizeof(INPUT))) {
+		debug("failed sending input: %lu", GetLastError());
+	}
 }
